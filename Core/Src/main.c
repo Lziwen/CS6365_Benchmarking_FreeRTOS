@@ -321,6 +321,18 @@ PUTCHAR_PROTOTYPE
 //	printf("send complete\r\n");
 //}
 
+/* helper function for benchmarking Timer */
+int cnt = 0;
+void vTimerCallback( xTimerHandle xTimer )
+{
+	cycles[cnt] = KIN1_GetCycleCounter();
+     if (++cnt == 100) {
+	     KIN1_DisableCycleCounter();
+		xTimerStop(xTimer, 0);
+	}
+	else KIN1_ResetCycleCounter();
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartBlink01 */
@@ -333,82 +345,63 @@ PUTCHAR_PROTOTYPE
 void StartBlink01(void *argument)
 {
   /* USER CODE BEGIN 5 */
-	/*
-	 // example for counting cycles and print out to console
-	  KIN1_InitCycleCounter(); // enable DWT hardware
 
-  // Infinite loop
-	  unsigned times[100];
+	/* Benchmark for semaphore and Mutex */
+	/*
+	// The following line is commented for Mutex and Recursive Mutex.
+	xSemaphoreTake( xSemaphore, portMAX_DELAY);
+	for (int i=0;i<50;++i) {
+		vTaskDelay(1);
+		KIN1_EnableCycleCounter();
+		KIN1_ResetCycleCounter();
+		xSemaphoreGive( xSemaphore );
+		vTaskDelay(1);
+		xSemaphoreTake( xSemaphore, portMAX_DELAY);
+		cycles[i*2+1] = KIN1_GetCycleCounter();
+	}
+	*/
+
+	/* Benchmarking for stream buffer and message buffer */
+	/*
+	 KIN1_InitCycleCounter();
+	  unsigned times[200];
 	  char buffer[40];
-  for(int i=0;i<100;++i)
-  {
-		KIN1_EnableCycleCounter(); // start counting
+  	for(int i=0;i<100;++i)
+  	{
+		KIN1_EnableCycleCounter(); 
 		KIN1_ResetCycleCounter();
-		size_t xBytesSent = xMessageBufferSend( xStreamBuffer,
-										( void * ) ucArrayToSend,
-										sizeof( ucArrayToSend ), 0);
-		cycles = KIN1_GetCycleCounter(); // get cycle counter
-		HAL_UART_Transmit(&huart2, (uint8_t*)buffer, sprintf(buffer, "%u\r\n", cycles), 500);
-		times[i] = cycles;
-		KIN1_DisableCycleCounter(); // disable counting if not used any more
+		size_t xBytesSent = xMessageBufferSend( xStreamBuffer, ( void * ) ucArrayToSend, sizeof( ucArrayToSend ), 0);
+		times[2*i] = KIN1_GetCycleCounter(); 
+		KIN1_ResetCycleCounter();
+		size_t xReceivedBytes = xMessageBufferReceive( xStreamBuffer, ( void * ) ucArrayToSend, sizeof( ucArrayToSend ), 0 );
+		times[2*i+1] = KIN1_GetCycleCounter(); 
+		KIN1_DisableCycleCounter();
+  	}
+	  */
 
-		size_t xReceivedBytes = xMessageBufferReceive( xStreamBuffer,
-											   ( void * ) ucArrayToSend,
-											   sizeof( ucArrayToSend ),
-											   0 );
-
-
-  }
-  */
-
-
+	/* Benchmark for Timer */
 	/*
-	 // example for testing acquire and release a semaphore
-	xSemaphoreTake(xSemaphore, portMAX_DELAY);
-	for (int i = 0; i < 50; ++i) {
-		vTaskDelay(1);
-		KIN1_EnableCycleCounter();
-		KIN1_ResetCycleCounter();
-		xSemaphoreGive(xSemaphore);
-		vTaskDelay(1);
-		xSemaphoreTake(xSemaphore, portMAX_DELAY);
-		cycles[i*2 + 1] = KIN1_GetCycleCounter();
-	}
+	KIN1_InitCycleCounter();
+
+	TimerHandle_t xTimer = xTimerCreate(
+			  "Timer",
+			  pdMS_TO_TICKS(1),
+			  pdTRUE,
+			  ( void * ) 0,
+			  vTimerCallback
+			);
+	KIN1_EnableCycleCounter();
+	KIN1_ResetCycleCounter();
+	xTimerStart( xTimer, 0 );
+	  while (1)
+	  {
+
+	  }
 	*/
+
+
+	/* Benchmark for task notification */
 	uint32_t valueToSend1 = 20;
-
-
-	/*
-	 // example for testing normal direct to task notification
-	// deprecated
-	uint32_t receivedValue = 0;
-	for (int i = 0; i < 50; ++i) {
-		vTaskDelay(1);
-		KIN1_EnableCycleCounter();
-
-		if (xTaskNotify(myTask02Handle, valueToSend, eSetValueWithoutOverwrite) == pdTRUE) {
-			++valueToSend;
-		}
-
-
-		KIN1_ResetCycleCounter();
-		vTaskDelay(1);
-
-//		if (xTaskNotifyWait(0, ULONG_MAX, &receivedValue, 1000) == pdPASS) {
-//			cycles[i * 2 + 1] = KIN1_GetCycleCounter();
-//		}
-		while (1) {
-			if (xTaskNotifyWait(0, ULONG_MAX, &receivedValue, 1) == pdPASS) {
-				cycles[i * 2 + 1] = KIN1_GetCycleCounter();
-				break;
-			} else {
-				KIN1_ResetCycleCounter();
-			}
-		}
-	}
-	*/
-
-
 
 	 // example for testing normal direct to task notification
 	for (int i = 0; i < 100; ++i) {
@@ -424,26 +417,17 @@ void StartBlink01(void *argument)
 			KIN1_ResetCycleCounter();
 			vTaskDelay(1);
 		}
-//		while (xTaskNotify(myTask02Handle, valueToSend1, eSetValueWithoutOverwrite) == pdTRUE) {
-//			KIN1_ResetCycleCounter();
-//			vTaskDelay(1);
-//			valueToSend1++;
-//		}
 	}
-
 
 
 
 /*
 	// example for testing semaphore-style direct to task notification
 	for (int i = 0; i < 100; ++i) {
-		//vTaskDelay(1);
 		KIN1_EnableCycleCounter();
 		KIN1_ResetCycleCounter();
 		xTaskNotifyGive(myTask02Handle);
 		vTaskDelay(1);
-		//ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-		//cycles[i * 2 + 1] = KIN1_GetCycleCounter();
 	}
 */
 
@@ -480,7 +464,6 @@ void StartBlink01(void *argument)
 	const TickType_t xTicksToWait = 100 / portTICK_PERIOD_MS;
 	uint32_t receivedValue = 0;
 	for (int i = 0; i < 100; ++i) {
-		//vTaskDelay(1);
 		KIN1_EnableCycleCounter();
 		while (1) {
 			KIN1_ResetCycleCounter();
@@ -493,23 +476,11 @@ void StartBlink01(void *argument)
 			KIN1_ResetCycleCounter();
 			vTaskDelay(1);
 		}
-//		xQueueSend(xQueue1, &valueToSend, xTicksToWait);
-//		valueToSend++;
-//		KIN1_ResetCycleCounter();
-//		vTaskDelay(1);
-		//xQueueReceive(xQueue1, &receivedValue, xTicksToWait);
-		//cycles[i * 2 + 1] = KIN1_GetCycleCounter();
 	}
 	*/
 
 
   vTaskDelete( NULL );
-  /*
-  char buffer[40];
-  	for (int i = 0; i < 50; ++i) {
-  		HAL_UART_Transmit(&huart2, (uint8_t*)buffer, sprintf(buffer, "task1: %u\r\n", cycles[i*2 + 1]), 500);
-  	}
-  	*/
   /* USER CODE END 5 */
 }
 
@@ -523,54 +494,22 @@ void StartBlink01(void *argument)
 void StartTask02(void *argument)
 {
   /* USER CODE BEGIN StartTask02 */
-
+	/* Benchmark for semaphore and Mutex */
 	/*
-	 // example for testing semaphore
-		for (int i = 0; i < 50; ++i) {
-			xSemaphoreTake(xSemaphore, portMAX_DELAY);
-			cycles[i*2] = KIN1_GetCycleCounter();
-			KIN1_DisableCycleCounter();
-			vTaskDelay(1);
-			KIN1_EnableCycleCounter();
-			KIN1_ResetCycleCounter();
-			xSemaphoreGive(xSemaphore);
-			vTaskDelay(1);
-
-		}
-		*/
-
-
-	//uint32_t valueToSend = 120;
-	uint32_t receivedValue;
-
-	// deprecated
-	/*
-	// uint32_t valueToSend = 100;
-	for (int i = 0; i < 50; ++i) {
-//		if (xTaskNotifyWait(0, ULONG_MAX, &receivedValue, 1000) == pdPASS) {
-//			cycles[i * 2] = KIN1_GetCycleCounter();
-//		}
-
-		while (1) {
-			if (xTaskNotifyWait(0, ULONG_MAX, &receivedValue, 1) == pdPASS) {
-				cycles[i * 2] = KIN1_GetCycleCounter();
-				break;
-			} else {
-				KIN1_ResetCycleCounter();
-			}
-		}
+	for (int i=0;i<50;++i) {
+		xSemaphoreTake( xSemaphore, portMAX_DELAY);
+		cycles[i*2] = KIN1_GetCycleCounter();
+		KIN1_DisableCycleCounter();
 		vTaskDelay(1);
 		KIN1_EnableCycleCounter();
-		if (xTaskNotify(blink01Handle, valueToSend, eSetValueWithoutOverwrite) == pdTRUE) {
-			++valueToSend;
-		}
-
 		KIN1_ResetCycleCounter();
+		xSemaphoreGive( xSemaphore );
 		vTaskDelay(1);
 	}
 	*/
+	uint32_t receivedValue;
 
-
+	/* Benchmark for task notification */
 	// example for testing normal direct to task notification
 	int i = 0;
 	while (1) {
@@ -598,10 +537,6 @@ void StartTask02(void *argument)
 		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 		cycles[i] = KIN1_GetCycleCounter();
 		vTaskDelay(1);
-		//KIN1_EnableCycleCounter();
-		//xTaskNotifyGive(blink01Handle);
-		//KIN1_ResetCycleCounter();
-		//vTaskDelay(1);
 	}
 	*/
 
@@ -609,7 +544,6 @@ void StartTask02(void *argument)
 	int i = 0;
 	while (1) {
 		while (1) {
-			//KIN1_ResetCycleCounter();
 			uint32_t res = ulTaskNotifyTake(pdTRUE, 1);
 			if (res == 1) {
 				cycles[i++] = KIN1_GetCycleCounter();
@@ -632,10 +566,6 @@ void StartTask02(void *argument)
 		xEventGroupWaitBits(eventGroup, BIT_0, pdTRUE, pdTRUE, xTicksToWait);
 		cycles[i] = KIN1_GetCycleCounter();
 		vTaskDelay(1);
-		//KIN1_EnableCycleCounter();
-		//xEventGroupSetBits(eventGroup, BIT_1);
-		//KIN1_ResetCycleCounter();
-		//vTaskDelay(1);
 	}
 	*/
 
@@ -667,11 +597,6 @@ void StartTask02(void *argument)
 		xQueueReceive(xQueue1, &receivedValue, xTicksToWait);
 		cycles[i] = KIN1_GetCycleCounter();
 		vTaskDelay(1);
-		//KIN1_EnableCycleCounter();
-		//xQueueSend(xQueue1, &valueToSend, xTicksToWait);
-		//valueToSend++;
-		//KIN1_ResetCycleCounter();
-		//vTaskDelay(1);
 	}
 	*/
 /*
@@ -693,12 +618,6 @@ void StartTask02(void *argument)
 	}
 	*/
 	vTaskDelete( NULL );
-	  /*
-	  char buffer[40];
-	    	for (int i = 0; i < 50; ++i) {
-	    		HAL_UART_Transmit(&huart2, (uint8_t*)buffer, sprintf(buffer, "task2: %u\r\n", cycles[i*2]), 500);
-	    	}
-	    	*/
   /* USER CODE END StartTask02 */
 }
 
